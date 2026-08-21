@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>直播模拟器 · 网页版框架</title>
+<style>
+  :root{
+    --bg:#0e0f13; --bg2:#16181f; --panel:#1b1e27; --panel2:#222632;
+    --line:#2c3140; --text:#e7e9ee; --muted:#9aa2b1; --dim:#6b7280;
+    --accent:#ff4d6d; --accent2:#7c5cff; --gold:#ffce5c; --green:#3ddc97;
+    --blue:#4da3ff; --red:#ff5b6e; --radius:12px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{height:100%;}
+  body{
+    font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+    background:var(--bg); color:var(--text); font-size:14px; line-height:1.6;
+    overflow:hidden;
+  }
+  button{font-family:inherit;cursor:pointer;border:none;color:inherit;}
+  .hidden{display:none!important;}
+  /* ===== Top bar ===== */
+  .topbar{
+    height:52px; display:flex; align-items:center; gap:14px;
+    padding:0 16px; background:var(--bg2); border-bottom:1px solid var(--line);
+    position:relative; z-index:30;
+  }
+  .topbar .logo{font-weight:700; letter-spacing:.5px; font-size:16px;}
+  .topbar .logo span{color:var(--accent);}
+  .topbar .tag{font-size:11px; color:var(--dim); border:1px solid var(--line);
+    padding:2px 8px; border-radius:20px;}
+  .topbar .spacer{flex:1;}
+  .pill{font-size:12px; padding:5px 10px; border-radius:20px; background:var(--panel2);
+    border:1px solid var(--line); display:flex; align-items:center; gap:6px;}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--dim);}
+  .dot.on{background:var(--green);} .dot.off{background:var(--red);}
+  .btn{background:var(--panel2); border:1px solid var(--line); padding:6px 12px;
+    border-radius:8px; font-size:13px; transition:.15s;}
+  .btn:hover{border-color:var(--accent2);}
+  .btn.primary{background:var(--accent); border-color:var(--accent); color:#fff;}
+  .btn.primary:hover{filter:brightness(1.1);}
+  /* ===== Layout ===== */
+  .layout{display:grid; grid-template-columns:1fr 340px; gap:12px;
+    padding:12px; height:calc(100% - 52px);}
+  .col-main{display:flex; flex-direction:column; gap:12px; min-height:0;}
+  .col-side{display:flex; flex-direction:column; gap:12px; min-height:0; overflow:auto;}
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius);}
+  .card .hd{padding:9px 14px; border-bottom:1px solid var(--line); font-weight:600;
+    font-size:13px; display:flex; align-items:center; gap:8px; color:var(--muted);}
+  .card .bd{padding:12px 14px;}
+  /* ===== Live room (YouTube-ish) ===== */
+  .stage{position:relative; aspect-ratio:16/9; background:
+    radial-gradient(120% 120% at 50% 0%, #2a2030 0%, #14151c 70%);
+    border-radius:10px; overflow:hidden; border:1px solid var(--line);}
+  .stage .scan{position:absolute; inset:0; pointer-events:none;
+    background:linear-gradient(transparent 50%, rgba(0,0,0,.18) 50%);
+    background-size:100% 4px; opacity:.25;}
+  .stage .center{position:absolute; inset:0; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; gap:10px; text-align:center; padding:20px;}
+  .avatar{width:84px;height:84px;border-radius:50%;
+    background:linear-gradient(135deg,var(--accent2),var(--accent));
+    display:flex;align-items:center;justify-content:center;font-size:34px;font-weight:700;
+    color:#fff; box-shadow:0 8px 30px rgba(255,77,109,.3);}
+  .stage .live-name{font-size:20px;font-weight:700;}
+  .stage .live-cat{font-size:12px;color:var(--muted);}
+  .stage .status-row{display:flex;gap:16px;font-size:12px;color:var(--muted);margin-top:6px;}
+  .stage .status-row b{color:var(--text);}
+  .live-badge{position:absolute; top:12px; left:12px; background:var(--accent);
+    color:#fff; font-size:11px; font-weight:700; padding:3px 9px; border-radius:4px;
+    display:flex; align-items:center; gap:5px;}
+  .live-badge.dark{background:#000; border:1px solid var(--accent);}
+  .dark-flower{position:absolute; top:12px; right:12px; font-size:18px;}
+  .rank-board{position:absolute; top:46px; right:12px; width:150px;
+    background:rgba(10,11,15,.78); border:1px solid var(--line); border-radius:8px;
+    padding:8px 10px; font-size:11px; backdrop-filter:blur(4px);}
+  .rank-board h5{font-size:11px;color:var(--gold);margin-bottom:5px;}
+  .rank-board .r{display:flex;justify-content:space-between;margin:3px 0;color:var(--muted);}
+  .rank-board .r b{color:var(--text);}
+  /* ===== Danmaku ===== */
+  .danmaku{height:120px; overflow:hidden; position:relative; background:var(--bg2);
+    border-radius:10px; border:1px solid var(--line); padding:6px 10px;}
+  .dm{position:absolute; white-space:nowrap; font-size:13px; animation:dm linear forwards;
+    text-shadow:0 1px 2px #000; }
+  .dm .id{color:var(--blue); font-weight:600; margin-right:5px;}
+  @keyframes dm{from{transform:translateX(100%);}to{transform:translateX(-110%);}}
+  .dm-static{height:140px; overflow:auto; background:var(--bg2); border-radius:10px;
+    border:1px solid var(--line); padding:8px 10px; font-size:12.5px;}
+  .dm-static .row{padding:2px 0; color:var(--muted);}
+  .dm-static .row .id{color:var(--blue); font-weight:600;}
+  .dm-static .row.me{color:var(--green);}
+  /* ===== Narrative ===== */
+  .narrative{flex:1; overflow:auto; background:var(--bg2); border-radius:10px;
+    border:1px solid var(--line); padding:14px 16px; font-size:14px;}
+  .narrative .blk{margin-bottom:12px; padding-bottom:12px; border-bottom:1px dashed var(--line);}
+  .narrative .who{font-size:11px; color:var(--accent2); font-weight:600; margin-bottom:3px;
+    text-transform:uppercase; letter-spacing:.5px;}
+  .narrative .spaced{letter-spacing:1px;} /* 特殊排版: 每字间加 ˊ 由 JS 处理 */
+  .narrative .sys{color:var(--gold); font-style:italic;}
+  /* ===== Choices ===== */
+  .choices{display:grid; gap:8px;}
+  .choice{background:var(--panel2); border:1px solid var(--line); border-radius:9px;
+    padding:10px 13px; text-align:left; font-size:13.5px; transition:.15s;}
+  .choice:hover{border-color:var(--accent); background:#2a2e3b;}
+  .choice .hint{display:block; font-size:11px; color:var(--dim); margin-top:3px;}
+  /* ===== Sidebar ===== */
+  .stat-grid{display:grid; grid-template-columns:1fr 1fr; gap:8px;}
+  .stat{background:var(--bg2); border:1px solid var(--line); border-radius:8px; padding:8px 10px;}
+  .stat .k{font-size:11px; color:var(--dim);}
+  .stat .v{font-size:16px; font-weight:700;}
+  .bar{height:6px; background:var(--bg); border-radius:4px; margin-top:5px; overflow:hidden;}
+  .bar > i{display:block; height:100%; background:var(--accent);}
+  .bar.green > i{background:var(--green);} .bar.blue > i{background:var(--blue);}
+  .bar.gold > i{background:var(--gold);}
+  .aud-card{background:var(--bg2); border:1px solid var(--line); border-radius:9px;
+    padding:9px 11px; margin-bottom:9px; font-size:12px;}
+  .aud-card .nm{font-weight:700; font-size:13px; display:flex; justify-content:space-between;
+    align-items:center;}
+  .aud-card .nm .tier{font-size:10px; color:var(--dim);}
+  .aud-card .line{color:var(--muted); margin:2px 0;}
+  .aud-card .line b{color:var(--text);}
+  .mini-bars{display:flex; gap:6px; margin-top:6px;}
+  .mini-bars .mb{flex:1;}
+  .mini-bars .mb .k{font-size:9px;color:var(--dim);}
+  .mini-bars .mb .bar{margin-top:2px;}
+  .shop-item{display:flex; justify-content:space-between; align-items:center;
+    padding:8px 10px; border:1px solid var(--line); border-radius:8px; margin-bottom:7px;
+    background:var(--bg2); font-size:12.5px;}
+  .shop-item .price{color:var(--gold); font-weight:700;}
+  .lock{color:var(--red); font-size:11px;}
+  /* ===== Modal ===== */
+  .modal-mask{position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:50;
+    display:flex; align-items:center; justify-content:center; padding:20px;}
+  .modal{width:min(720px,96vw); max-height:90vh; overflow:auto; background:var(--panel);
+    border:1px solid var(--line); border-radius:14px;}
+  .modal .mhd{padding:14px 18px; border-bottom:1px solid var(--line); display:flex;
+    justify-content:space-between; align-items:center; font-weight:700;}
+  .modal .mbd{padding:16px 18px;}
+  .modal .mft{padding:12px 18px; border-top:1px solid var(--line); display:flex; gap:10px;
+    justify-content:flex-end;}
+  .field{margin-bottom:13px;}
+  .field label{display:block; font-size:12px; color:var(--muted); margin-bottom:5px;}
+  .field input, .field textarea, .field select{width:100%; background:var(--bg2);
+    border:1px solid var(--line); color:var(--text); border-radius:8px; padding:9px 11px;
+    font-size:13px; font-family:inherit;}
+  .field textarea{resize:vertical; min-height:90px;}
+  .row2{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
+  .note{font-size:11.5px; color:var(--dim); line-height:1.5; margin-top:4px;}
+  .overlay-shop{position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:55;
+    display:flex; align-items:center; justify-content:center; padding:20px;}
+  .toast{position:fixed; bottom:20px; left:50%; transform:translateX(-50%);
+    background:var(--panel2); border:1px solid var(--line); padding:10px 18px; border-radius:10px;
+    z-index:80; font-size:13px; box-shadow:0 10px 30px rgba(0,0,0,.4);}
+  .seg{display:flex; gap:8px; flex-wrap:wrap;}
+  .seg button{background:var(--bg2); border:1px solid var(--line); padding:7px 12px;
+    border-radius:20px; font-size:12.5px;}
+  .seg button.sel{border-color:var(--accent); color:var(--accent); background:#241a20;}
+  table.stats{width:100%; border-collapse:collapse; font-size:12.5px; margin-top:6px;}
+  table.stats th, table.stats td{border:1px solid var(--line); padding:6px 8px; text-align:left;}
+  table.stats th{background:var(--bg2); color:var(--muted); font-weight:600;}
+  .scroll{overflow:auto;}
+  .empty{color:var(--dim); font-size:12.5px; text-align:center; padding:18px 0;}
+  ::-webkit-scrollbar{width:8px;height:8px;} ::-webkit-scrollbar-thumb{background:var(--line);border-radius:4px;}
+
+  /* ============ 响应式：手机/窄屏 ============ */
+  @media (max-width: 860px){
+    body{overflow:auto;}
+    .topbar{flex-wrap:wrap; height:auto; padding:8px 12px; gap:8px;}
+    .topbar .tag{display:none;}
+    .topbar .btn{padding:5px 9px; font-size:12px;}
+    .topbar .logo{font-size:14px;}
+    .layout{grid-template-columns:1fr; height:auto; padding:10px; gap:10px;}
+    .col-main{min-height:0;}
+    .col-side{overflow:visible;}
+    /* 叙事卡在窄屏给固定高度，避免 flex:1 塌成 0 */
+    .card[style*="flex:1"]{flex:none!important; height:auto!important;}
+    .narrative{height:300px!important; flex:none!important;}
+    .stage{aspect-ratio:16/10;}
+    .danmaku{height:100px;}
+    .rank-board{width:120px; font-size:10px;}
+    .stat-grid{grid-template-columns:1fr 1fr;}
+    .choices{gap:7px;}
+    .choice{font-size:13px; padding:11px 12px;}
+    .modal{width:96vw;}
+    .row2{grid-template-columns:1fr;}
+    .modal .mbd{padding:13px 14px;}
+    .topbar .spacer{display:none;}
+  }
+  @media (max-width: 420px){
+    .stat-grid{grid-template-columns:1fr 1fr;}
+    .stage .status-row{font-size:11px; gap:8px;}
+    .stage .live-name{font-size:17px;}
+    .narrative{height:260px!important;}
+  }
+  /* 模型快捷切换 / 温度滑块 */
+  .seg{display:flex;gap:6px;}
+  .seg button{flex:1;}
+  .seg button.active{outline:2px solid var(--blue);background:rgba(77,163,255,0.18);font-weight:600;}
+  .tempwrap{display:flex;align-items:center;gap:10px;}
+  .tempwrap input[type=range]{flex:1;accent-color:var(--blue);}
+  .tempval{font-variant-numeric:tabular-nums;font-weight:700;min-width:34px;text-align:right;color:var(--blue);}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="logo">直播<span>模拟器</span> · 网页框架</div>
+  <div class="tag">单文件离线 · API 可接</div>
+  <div class="spacer"></div>
+  <div class="pill" id="tokPill" title="最近一次 API 用量">🔤 0 tok</div>
+  <div class="pill"><span class="dot off" id="apiDot"></span><span id="apiLabel">API 未配置</span></div>
+  <button class="btn" id="btnRestart">重开</button>
+  <button class="btn" id="btnReset">清档</button>
+  <button class="btn primary" id="btnSettings" type="button">⚙ 接入 API</button>
+</div>
+
+<div class="layout">
+  <!-- ============ MAIN ============ -->
+  <div class="col-main">
+    <!-- Live stage -->
+    <div class="card">
+      <div class="hd">📺 直播间 <span id="roomTier" style="color:var(--dim);font-weight:400;"></span></div>
+      <div class="bd">
+        <div class="stage" id="stage">
+          <div class="live-badge" id="liveBadge">● LIVE</div>
+          <div class="dark-flower hidden" id="darkFlower">🌑</div>
+          <div class="rank-board hidden" id="rankBoard">
+            <h5>🏆 本场打赏榜</h5>
+            <div id="rankList"><div class="empty">暂无上榜</div></div>
+          </div>
+          <div class="center">
+            <div class="avatar" id="streamerAvatar">?</div>
+            <div class="live-name" id="streamerName">未创建角色</div>
+            <div class="live-cat" id="streamerCat">— 选择分区后生成 —</div>
+            <div class="status-row">
+              <span>👁 在线 <b id="stOnline">0</b></span>
+              <span>👍 点赞 <b id="stLikes">0</b></span>
+              <span>🎁 本场打赏 <b id="stGift">0</b></span>
+            </div>
+          </div>
+          <div class="scan"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Danmaku + narrative -->
+    <div class="card" style="flex:1; display:flex; flex-direction:column; min-height:0;">
+      <div class="hd">💬 弹幕 & 剧情</div>
+      <div class="bd" style="flex:1; display:flex; flex-direction:column; gap:10px; min-height:0;">
+        <div class="danmaku" id="danmaku"></div>
+        <div class="narrative" id="narrative">
+          <div class="empty">点击下方「开始」按钮，第一回合将生成欢迎语并询问你的角色设定。</div>
+        </div>
+        <div class="choices" id="choices"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ SIDE ============ -->
+  <div class="col-side">
+    <div class="card">
+      <div class="hd">📊 玩家数值</div>
+      <div class="bd">
+        <div class="stat-grid">
+          <div class="stat"><div class="k">账户余额</div><div class="v" id="pBalance">0</div></div>
+          <div class="stat"><div class="k">黑化值</div><div class="v" id="pBlack">0</div>
+            <div class="bar"><i id="pBlackBar" style="width:0%"></i></div></div>
+          <div class="stat"><div class="k">粉丝数</div><div class="v" id="pFans">0</div></div>
+          <div class="stat"><div class="k">关注者活跃</div><div class="v" id="pActive">0</div>
+            <div class="bar blue"><i id="pActiveBar" style="width:0%"></i></div></div>
+        </div>
+        <div class="note" id="tierHint" style="margin-top:8px;">未分层</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="hd">👥 观众属性卡 <button class="btn" id="btnShop" style="margin-left:auto;padding:3px 9px;font-size:11px;">🛒 商城</button></div>
+      <div class="bd" id="audienceBox"><div class="empty">暂无观众出场</div></div>
+    </div>
+
+    <div class="card">
+      <div class="hd">🎮 控制</div>
+      <div class="bd" style="display:flex;flex-direction:column;gap:8px;">
+        <button class="btn primary" id="btnStart" style="padding:11px;">▶ 开始 / 下一回合</button>
+        <button class="btn" id="btnRest">🌙 进入休息日</button>
+        <button class="btn" id="btnPost">📸 发布作品</button>
+        <button class="btn" id="btnDark">🌑 开启黑暗直播间</button>
+        <div class="note">提示：接好 API 后，剧情、弹幕、选项、数值变化均由模型按设定返回；未配置时走沙盒演示。</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ SETTINGS MODAL ============ -->
+<div class="modal-mask hidden" id="settingsModal">
+  <div class="modal">
+    <div class="mhd">⚙ 接入 API（OpenAI 兼容）<button class="btn" id="btnCloseSettings">✕</button></div>
+    <div class="mbd">
+<div id="apiHelp" class="note" style="border:1px solid var(--line);padding:8px;border-radius:8px;margin-bottom:10px;">
+  先填写 API Base URL、API Key 和模型名；点击“测试连接”后才会真正发起请求。若浏览器提示 Failed to fetch / NetworkError，通常不是按钮问题，而是 CORS 或网络环境限制。
+</div>
+      <div class="field">
+        <label>API Base URL</label>
+        <input id="cfgBase" value="https://api.deepseek.com/v1" placeholder="https://api.deepseek.com/v1">
+        <div class="note">DeepSeek 用上面这个；OpenAI 用 https://api.openai.com/v1；兼容端点均可。</div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>API Key</label><input id="cfgKey" type="password" placeholder="sk-..."></div>
+        <div class="field"><label>模型名（也可手动填）</label><input id="cfgModel" value="deepseek-v4-flash" placeholder="deepseek-v4-flash"></div>
+        <div class="seg" style="margin-top:-4px;">
+          <button id="btnModelFlash" class="btn ghost" type="button">🌱 Flash（省·默认）</button>
+          <button id="btnModelPro" class="btn ghost" type="button">⚡ Pro（强·贵）</button>
+        </div>
+      </div>
+      <div class="field">
+        <label>温度 Temperature（越低越稳、越高越跳）</label>
+        <div class="tempwrap">
+          <input id="cfgTemp" type="range" min="0" max="2" step="0.1" value="0.9">
+          <span class="tempval" id="tempVal">0.9</span>
+        </div>
+      </div>
+      <div class="note">温度控制"随机性"：<b>0</b>＝每次回答几乎一模一样、最省钱省心；<b>0.7~1.0</b>＝更有变化、更鲜活但偶尔跑偏；<b>2</b>＝非常放飞。剧情类游戏建议 0.8~1.0，想可控就调 0.3~0.5。这个跟"token 用量"无关，只影响内容花样。</div>
+      <div class="row2">
+        <button id="btnEco" class="btn ghost">🌱 最省预设</button>
+        <div class="note" style="margin:0;">一键：模型=deepseek-v4-flash（最便宜）＋ 温度=0.4（够稳）＋ 省Token模式=开。</div>
+      </div>
+      <div class="field">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+          <input type="checkbox" id="cfgSave" style="width:auto;"> 🌱 省 Token 模式（推荐开启）
+        </label>
+        <div class="note">开启后：① 模型不再返回弹幕/随机事件/观众卡（改由前端本地生成，不耗 API）；② 每回合只发"关键状态增量"，不发完整观众属性；③ 指令模型精简输出（每段≤80字、总量≤240字）。系统提示词那一大段靠 DeepSeek 前缀缓存，仅首次全价，之后约 1 折计费。</div>
+      </div>
+      <div class="field">
+        <label>系统提示词（即你的设定 · 已预填 PDF 框架，可改）</label>
+        <textarea id="cfgSys"></textarea>
+        <div class="note">下方为从 PDF 提炼的结构化设定骨架，已去除逐字排版要求、改为「AI 返回 JSON」契约。你可以粘贴自己完整版设定覆盖它。</div>
+      </div>
+      <div class="field">
+        <label>返回格式约定（给模型的指令，勿改结构）</label>
+        <textarea id="cfgSchema" readonly></textarea>
+      </div>
+      <div class="note">⚠️ 密钥仅保存在本机浏览器 localStorage，不会上传到任何第三方。请仅用于你有权使用的账号。</div>
+    </div>
+    <div class="mft">
+      <button class="btn" id="btnTestApi">测试连接</button>
+      <button class="btn primary" id="btnSaveApi">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ SHOP MODAL ============ -->
+<div class="overlay-shop hidden" id="shopModal">
+  <div class="modal">
+    <div class="mhd">🛒 商城（不可跳过 · 必须选择）<button class="btn" id="btnCloseShop">✕</button></div>
+    <div class="mbd">
+      <div class="note" style="margin-bottom:10px;">黑化值解锁不同品类：≥20 初级情趣用品；≥50 情趣带货；≥60 高级情趣用品；≥80 黑暗直播间道具库。</div>
+      <div id="shopList"></div>
+    </div>
+    <div class="mft"><button class="btn primary" id="btnBuyDone">完成选购并关闭</button></div>
+  </div>
+</div>
+
+<!-- ============ DARK ARCHIVE MODAL ============ -->
+<div class="modal-mask hidden" id="darkModal">
+  <div class="modal">
+    <div class="mhd">🌑 调教档案（Lv.4+ 可查看）<button class="btn" id="btnCloseDark">✕</button></div>
+    <div class="mbd" id="darkBody"><div class="empty">尚未开启黑暗直播间。</div></div>
+  </div>
+</div>
+
+<script>
+/* =========================================================
+   直播模拟器 · 网页框架 v1
+   - 纯前端单文件；UI 外壳 + 游戏状态
+   - API 接入点：callAI()（OpenAI 兼容 / DeepSeek）
+   - 无 API 时走 sandbox mock，验证版式与流程
+   - AI 返回契约见 RESPONSE_SCHEMA
+   ========================================================= */
+
+const SAVE_KEY = "live_sim_save_v1";
+const CFG_KEY  = "live_sim_cfg_v1";
+
+/* ---------- 默认系统提示词（PDF 骨架，已转为「返回 JSON」契约） ---------- */
+const DEFAULT_SYS = `你是一个文字互动游戏《直播模拟器》的剧情引擎。世界观：一个仅对特定用户开放的成人向直播平台，主播走各类擦边赛道（ASMR/健身/歌见/舞蹈/绘画/调酒/服装/摄影/萌宠/美妆/户外/偶像/拆卡/美食等）。
+
+【主播设定】玩家可选：露脸型/半遮型/不露脸型；直播风格：捕猎型/表演型/职业型/享受型/支配型/引诱型/迟钝型/被迫型/游戏人间型。每进入新直播间需刷新界面信息（名称/分区/在线/点赞/打赏榜/弹幕/主播状态）。
+
+【分层】按关注数、在线、打赏活跃分三档：高人气/上升期/新人小众。晋升触发新剧情与观众类型。
+
+【榜一私联】NPC 累计打赏成榜一可发起私联，玩家接受/拒绝；占有欲>50 可能线下调查、偶遇。
+
+【观众人设】首次出场生成属性卡：id/年龄(20-35)/性别(男锁定)/职业/消费水平(低中高消)/性格类型(内敛克制·表达欲强·冷感疏离·紧张羞涩·情绪控制·玩世不恭等)/指令倾向(主动·被动·观望·酒后冲动)/偏好互动/沦陷程度(轻度·中度·重度·沉溺)/好感度/占有欲/性趣值。身材样貌都好。
+
+【数值系统】玩家：账户余额(打赏分成)、黑化值(执行se选项升、纯情/休息降；≥20解锁初级情趣用品、≥50情趣带货、≥60高级情趣用品、≥80黑暗直播间道具库)。NPC：好感度(每次升降≤5)、占有欲(<30混入人群/>50独占欲/>80越界)、性趣值(≥80隔屏想象自慰)。
+
+【资金】常规打赏/带货平台抽50%，情趣用品抽30%，黑暗直播间100%归主播。每3天结算固定支出；每两次直播后强制弹商城。
+
+【多视角叙事】玩家行为(简洁)+观众反应(≥60%篇幅，切到某观众视角写身体反应/所见/环境)+动态弹幕+打赏动态+在线人数波动+后台动态+其他主播反应，至少用一种。观众会被现实打断。
+
+【规则】用第二人称"你"对玩家，第三人称对NPC。禁止横向对比拉踩、禁止无意义短句。每回合生成选项等玩家选择。每2-3回合必须产生钩子与实质进展。
+
+【黑暗直播间】标题旁黑色小花图标；不进推荐页，靠主播发链接；送礼不抽成。初始画面全黑仅声音+局部展示；高级模式观众可赠真实道具并发指令。开启后关键节点必须以选项交给玩家决定（何时结束/展示部位/是否执行指令/是否说安全词，均不让 AI 替玩家决定）。
+
+你必须只返回如下 JSON（不要任何额外文字、不要 markdown 代码块）：
+{"narrative":[{"who":"旁白/观众视角名/你","text":"...","spaced":false}],
+ "danmaku":[{"id":"网友ID","text":"..."}],
+ "choices":[{"label":"选项文字","effects":{"balance":0,"black":0,"fans":0,"active":0}}],
+ "audience":[{"id":"网友A","age":26,"gender":"男","job":"...","spend":"中消","persona":"冷感疏离型","cmd":"观望型","fall":"中度","favor":40,"possess":30,"lust":20}],
+ "statChanges":{"balance":0,"black":0,"fans":0,"active":0},
+ "room":{"online":1200,"likes":3400,"gift":0,"rank":[{"id":"网友A","amt":500}]},
+ "events":["随机事件描述"],
+ "system":["系统提示行（如解锁/弹窗/结算）"]}`;
+
+/* ---------- 默认返回契约说明（给用户的展示，不可改） ---------- */
+const RESPONSE_SCHEMA = `AI 必须只返回 JSON：
+{
+ "narrative":[{"who":"视角名","text":"剧情文字","spaced":false}],
+ "danmaku":[{"id":"网友ID","text":"弹幕"}],
+ "choices":[{"label":"选项","effects":{...}}],
+ "audience":[{"id","age","gender","job","spend","persona","cmd","fall","favor","possess","lust"}],
+ "statChanges":{"balance","black","fans","active"},
+ "room":{"online","likes","gift","rank":[{"id","amt"}]},
+ "events":["..."], "system":["..."]
+}
+表格/选项/弹幕中不要加特殊排版符号。`;
+
+/* ---------- 状态 ---------- */
+let state = null;
+let cfg = null;
+let lastUsage = null;
+
+function newGame(){
+  return {
+    started:false, round:0, streamCount:0,
+    player:{name:"",age:0,gender:"",style:"",face:"",cat:"",balance:0,black:0,fans:0,active:0,level:1},
+    room:{online:0,likes:0,gift:0,tier:"新人小众",dark:false,rank:[]},
+    audience:[],
+    darkArchive:null,
+    log:[],
+    pendingShop:false
+  };
+}
+
+/* ---------- 持久化 ---------- */
+function save(){ localStorage.setItem(SAVE_KEY, JSON.stringify(state)); }
+function load(){ const s=localStorage.getItem(SAVE_KEY); if(s) try{state=JSON.parse(s);}catch(e){} }
+function saveCfg(){ localStorage.setItem(CFG_KEY, JSON.stringify(cfg)); }
+function loadCfg(){ const s=localStorage.getItem(CFG_KEY); if(s) try{cfg=JSON.parse(s);}catch(e){} }
+
+/* ---------- API 接入点 ---------- */
+async function callAI(userMsg, isJson=true){
+  if(!cfg || !cfg.key){
+    return sandboxAI(userMsg);
+  }
+
+  let base = (cfg.base || "https://api.deepseek.com/v1").trim().replace(/\/+$/,"");
+  if(/\/chat\/completions$/i.test(base)) base = base.replace(/\/chat\/completions$/i,"");
+  if(!/\/v1$/i.test(base) && /api\.deepseek\.com$/i.test(base)) base += "/v1";
+
+  const sys = cfg.sys || DEFAULT_SYS;
+  const sysFinal = (cfg.saveMode ? sys + "\n\n【省TOKEN模式】严格遵守：① narrative 总字数≤240、每段≤80字，只写最关键的观众反应与玩家动作；② 不要返回 danmaku / events / audience 字段（前端本地生成）；③ choices 仍给3条；④ 仍必须只返回 JSON 且 room / statChanges 准确。" : sys);
+  const body = {
+    model: cfg.model || "deepseek-v4-flash",
+    temperature: parseFloat(cfg.temp ?? 0.9),
+    messages:[
+      {role:"system", content: sysFinal},
+      {role:"user", content: buildContext(userMsg)}
+    ]
+  };
+  if(isJson) body.response_format = {type:"json_object"};
+
+  try{
+    const r = await fetch(base + "/chat/completions", {
+      method:"POST",
+      headers:{
+        "Content-Type":"application/json",
+        "Authorization":"Bearer "+cfg.key
+      },
+      body: JSON.stringify(body)
+    });
+
+    const raw = await r.text();
+    let j = null;
+    try { j = raw ? JSON.parse(raw) : null; } catch(e) {}
+
+    if(!r.ok){
+      const detail = j?.error?.message || j?.message || raw || ("HTTP "+r.status);
+      throw new Error("HTTP "+r.status+" · "+detail.slice(0,300));
+    }
+
+    if(j?.usage){ lastUsage = j.usage; updateTokPill(); }
+
+    const content = j?.choices?.[0]?.message?.content || "";
+    if(!content) throw new Error("接口返回成功，但没有 choices[0].message.content");
+
+    if(isJson){
+      try{
+        return JSON.parse(content);
+      }catch(e){
+        return {narrative:[{who:"系统",text:"⚠️ 模型返回的不是合法 JSON。原文前200字：\n"+content.slice(0,200)}]};
+      }
+    }
+    return content;
+  }catch(e){
+    const msg = e?.message || String(e);
+    const corsHint = /Failed to fetch|NetworkError|Load failed/i.test(msg)
+      ? "；如果 Key/地址正确，通常是浏览器 CORS 或网络环境拦截"
+      : "";
+    console.error("[API] callAI failed:", e);
+    return {narrative:[{who:"系统",text:"⚠️ API 调用失败："+msg+corsHint+"（已回退沙盒演示）"}]};
+  }
+}
+
+/* 把当前游戏状态拼进上下文，让模型知道进程 */
+function buildContext(userMsg){
+  const p = state.player;
+  const save = cfg && cfg.saveMode;
+  const aud = state.audience.map(a=>
+    save ? a.id+"(好"+a.favor+"/占"+a.possess+"/欲"+a.lust+")"
+         : a.id+"(好感"+a.favor+"占"+a.possess+"欲"+a.lust+"-"+a.fall+")"
+  ).join("、") || "无";
+  return `【状态】R${state.round} ${p.name||"?"} ${p.age||"?"} ${p.gender||"?"} 风格${p.style||"?"} 露脸${p.face||"?"} 分区${p.cat||"?"} 余额${p.balance} 黑化${p.black} 粉丝${p.fans} 层${state.room.tier} 黑${state.room.dark?"Y":"N"}
+【观众】${aud}
+【输入】${userMsg}`;
+}
+
+/* ---------- 沙盒 mock（无 API 时演示版式） ---------- */
+function sandboxAI(userMsg){
+  state.round++;
+  const r = state.round;
+  // 回合1：欢迎+角色设定询问
+  if(r===1){
+    return {
+      narrative:[
+        {who:"旁白",text:"欢迎来到这个只对特定用户开放的直播平台。这里没有推荐页上的喧嚣，只有被算法筛选过的、带着隐秘欲望的观众。你被邀请成为主播——接下来，平台需要确认你的身份与风格。"},
+        {who:"系统",text:"【第一回合】平台正在为你生成直播间。请先完善你的主播档案。",spaced:false}
+      ],
+      danmaku:[
+        {id:"夜航船",text:"新人？蹲一个。"},{id:"雾里看花",text:"这平台居然还能新人入驻"},
+        {id:"老粉A",text:"前排，等开播"}
+      ],
+      choices:[
+        {label:"填写姓名 / 年龄 / 性别",effects:{}},
+        {label:"选择直播风格（捕猎/表演/职业/享受/支配/引诱/迟钝/被迫/游戏人间）",effects:{}},
+        {label:"选择是否露脸（露脸/半遮/不露脸）",effects:{}}
+      ],
+      audience:[{id:"夜航船",age:28,gender:"男",job:"建筑师",spend:"高消",persona:"冷感疏离型",cmd:"观望型",fall:"轻度",favor:20,possess:15,lust:10}],
+      statChanges:{balance:0,black:0,fans:0,active:0},
+      room:{online:37,likes:120,gift:0,rank:[]},
+      events:[],system:["提示：接好 API 后此处由模型按设定生成。当前为沙盒演示数据。"]
+    };
+  }
+  // 回合2：生成直播间+分层
+  if(r===2){
+    const tiers=["新人小众","上升期","高人气"];
+    state.room.tier = tiers[Math.floor(Math.random()*2)]; // 新人/上升期
+    state.player.fans = 200+Math.floor(Math.random()*800);
+    return {
+      narrative:[
+        {who:"旁白",text:"你的直播间已经搭好。屏幕亮起的一瞬，右上角的在线人数开始缓慢跳动——这是你在这片隐秘海域的第一盏灯。"},
+        {who:"你",text:"（你调整了镜头，确认画面构图后，对着镜头露出一个练习过的笑。）"}
+      ],
+      danmaku:[
+        {id:"雾里看花",text:"这氛围感可以"},{id:"夜航船",text:"风格有点意思"},
+        {id:"新来的猫",text:"关注了！"},{id:"K先生",text:"分区选得巧"}
+      ],
+      choices:[
+        {label:"按风格主动开场，挑逗弹幕",effects:{black:3,fans:15,active:5}},
+        {label:"先试探观众，安静观察",effects:{fans:5}},
+        {label:"展示才艺/分区内容，建立定位",effects:{fans:20,active:8}}
+      ],
+      audience:[
+        {id:"雾里看花",age:24,gender:"男",job:"自由摄影师",spend:"中消",persona:"表达欲强烈型",cmd:"主动型",fall:"中度",favor:35,possess:25,lust:25},
+        {id:"K先生",age:31,gender:"男",job:"投行经理",spend:"高消",persona:"情绪控制型",cmd:"酒后冲动型",fall:"轻度",favor:18,possess:10,lust:8}
+      ],
+      statChanges:{black:0,fans:0,active:0},
+      room:{online:state.room.tier==="高人气"?5200:state.room.tier==="上升期"?900:60,
+            likes:state.room.tier==="高人气"?18000:state.room.tier==="上升期"?2200:200,
+            gift:0,rank:[]},
+      events:[state.room.tier==="上升期"?"上升期窗口：新观众可快速上榜":"新人场：观众间暂无激烈矛盾"],
+      system:["已生成直播间，层级：" + state.room.tier]
+    };
+  }
+  // 通用回合：推进剧情 + 随机弹幕/打赏
+  const giftAmt = Math.random()<0.6 ? Math.floor(Math.random()*300)+20 : 0;
+  const gifter = state.audience.length? state.audience[Math.floor(Math.random()*state.audience.length)].id : "匿名用户";
+  const sampleAud = state.audience[0];
+  return {
+    narrative:[
+      {who: sampleAud?sampleAud.id:"观众",text:"（他靠在椅背上，目光停在屏幕里你的动作上，喉结动了一下，指尖无意识地在桌沿敲了两下。房间里的空气像是被调高了温度。）"},
+      {who:"你",text:"（你觉察到弹幕节奏变了，没有立刻回应，而是把镜头微微拉近，让光落在你想要的那个位置。）"}
+    ],
+    danmaku:[
+      {id:"雾里看花",text:"这镜头语言绝了"},{id:"夜航船",text:"@K先生 你榜一别潜水"},
+      {id:"新来的猫",text:"哈哈哈哈笑死"},{id:"Luna",text:"已三连"}
+    ],
+    choices:[
+      {label:"顺着他的反应加码，制造张力",effects:{black:4,fans:10,active:4}},
+      {label:"点到为止，留钩子让观众主动",effects:{fans:8}},
+      {label:"回应打赏，给专属关注",effects:{fans:6,active:3}}
+    ],
+    audience: state.audience,
+    statChanges:{balance:giftAmt, black:0, fans:0, active:0},
+    room:{online:state.room.online+(Math.floor(Math.random()*40)-10),
+          likes:state.room.likes+Math.floor(Math.random()*200),
+          gift:state.room.gift+giftAmt,
+          rank: giftAmt>0?[{id:gifter,amt:giftAmt}]:state.room.rank},
+    events: state.round%5===0?["【随机事件】平台推出节日特典活动，PK 赛开启，冠军一次性奖金浮动。"]:[],
+    system: giftAmt>0?[`💸 ${gifter} 打赏 ¥${giftAmt}，已计入余额（分成后）。`]:[]
+  };
+}
+
+/* ---------- 渲染 ---------- */
+function render(){
+  const p=state.player, r=state.room;
+  document.getElementById("streamerName").textContent = p.name||"未创建角色";
+  document.getElementById("streamerCat").textContent = p.cat? (p.cat+" · "+p.style) : "— 选择分区后生成 —";
+  document.getElementById("streamerAvatar").textContent = p.name? p.name.slice(0,1) : "?";
+  document.getElementById("stOnline").textContent = r.online;
+  document.getElementById("stLikes").textContent = r.likes;
+  document.getElementById("stGift").textContent = r.gift;
+  document.getElementById("roomTier").textContent = "· " + r.tier;
+  document.getElementById("liveBadge").className = "live-badge"+(r.dark?" dark":"");
+  document.getElementById("darkFlower").classList.toggle("hidden", !r.dark);
+  // rank board
+  const rb=document.getElementById("rankBoard");
+  if(r.rank && r.rank.length){ rb.classList.remove("hidden");
+    document.getElementById("rankList").innerHTML = r.rank.slice(0,5).map((x,i)=>
+      `<div class="r"><span>${i+1}. ${x.id}</span><b>¥${x.amt}</b></div>`).join("");
+  } else rb.classList.add("hidden");
+  // player stats
+  document.getElementById("pBalance").textContent = p.balance;
+  document.getElementById("pBlack").textContent = p.black;
+  document.getElementById("pBlackBar").style.width = Math.min(100,p.black)+"%";
+  document.getElementById("pFans").textContent = p.fans;
+  document.getElementById("pActive").textContent = p.active;
+  document.getElementById("pActiveBar").style.width = Math.min(100,p.active)+"%";
+  document.getElementById("tierHint").textContent = "层级："+r.tier+"｜黑化解锁："+
+    (p.black>=20?"初级情趣 ":"" )+(p.black>=50?"情趣带货 ":"")+(p.black>=60?"高级情趣 ":"")+(p.black>=80?"黑暗道具库":"");
+  // audience
+  const ab=document.getElementById("audienceBox");
+  if(state.audience.length){
+    ab.innerHTML = state.audience.map(a=>`
+      <div class="aud-card">
+        <div class="nm">${a.id} <span class="tier">${a.fall}·${a.spend}</span></div>
+        <div class="line">${a.age}岁·${a.gender}·${a.job}</div>
+        <div class="line">性格 <b>${a.persona}</b>｜指令 <b>${a.cmd}</b></div>
+        <div class="mini-bars">
+          ${miniBar("好感",a.favor,"green")}
+          ${miniBar("占有",a.possess,"")}
+          ${miniBar("性趣",a.lust,"gold")}
+        </div>
+      </div>`).join("");
+  } else ab.innerHTML='<div class="empty">暂无观众出场</div>';
+}
+function miniBar(k,v,cls){
+  return `<div class="mb"><div class="k">${k} ${v}</div><div class="bar ${cls}"><i style="width:${Math.min(100,v)}%"></i></div></div>`;
+}
+
+function renderResponse(resp){
+  const nar=document.getElementById("narrative");
+  if(resp.system && resp.system.length){
+    resp.system.forEach(s=>{ const d=document.createElement("div"); d.className="blk";
+      d.innerHTML=`<div class="who">系统</div><div class="sys">${esc(s)}</div>`; nar.appendChild(d); });
+  }
+  (resp.narrative||[]).forEach(b=>{
+    const d=document.createElement("div"); d.className="blk";
+    const txt = b.spaced ? spacedText(b.text||"") : esc(b.text||"");
+    d.innerHTML=`<div class="who">${esc(b.who||"旁白")}</div><div class="${b.spaced?'spaced':''}">${txt}</div>`;
+    nar.appendChild(d);
+  });
+  nar.scrollTop = nar.scrollHeight;
+  // danmaku：省 Token 模式下若模型未返回，则用本地生成
+  let dms = resp.danmaku || [];
+  if((cfg && cfg.saveMode) && dms.length===0){ dms = localDanmaku(4); }
+  dms.forEach(d=> spawnDanmaku(d.id,d.text));
+  // choices
+  const ch=document.getElementById("choices"); ch.innerHTML="";
+  (resp.choices||[]).forEach(c=>{
+    const b=document.createElement("button"); b.className="choice";
+    b.innerHTML=`${esc(c.label)}`+(c.effects&&Object.keys(c.effects).length?`<span class="hint">${effectHint(c.effects)}</span>`:"");
+    b.onclick=()=>choose(c);
+    ch.appendChild(b);
+  });
+  if(!resp.choices || !resp.choices.length){
+    const b=document.createElement("button"); b.className="choice"; b.textContent="（无选项 · 点「下一回合」继续）";
+    b.onclick=()=>nextRound("继续"); ch.appendChild(b);
+  }
+  // audience merge
+  if(resp.audience && resp.audience.length){
+    resp.audience.forEach(a=>{ if(!state.audience.find(x=>x.id===a.id)) state.audience.push(a); });
+  }
+  // stat changes
+  if(resp.statChanges){
+    const s=resp.statChanges;
+    state.player.balance += s.balance||0; state.player.black += s.black||0;
+    state.player.fans   += s.fans||0;   state.player.active += s.active||0;
+  }
+  if(resp.room){ Object.assign(state.room, resp.room); }
+  if(resp.events && resp.events.length){ resp.events.forEach(e=>toast(e)); }
+  else if((cfg && cfg.saveMode) && state.round%5===0){ toast("【随机事件】"+localRandomEvent()); }
+  if((cfg && cfg.saveMode) && state.round%5===0){
+    const na = localNewAudience();
+    if(na){ state.audience.push(na); toast("👤 新观众进入直播间："+na.id); }
+  }
+  render(); save();
+}
+
+function effectHint(e){
+  const map={balance:"💰",black:"🌑",fans:"👥",active:"🔥"};
+  return Object.keys(e).map(k=>map[k]+(e[k]>0?"+":"")+e[k]).join("  ");
+}
+function spawnDanmaku(id,text){
+  const box=document.getElementById("danmaku");
+  const el=document.createElement("div"); el.className="dm";
+  el.style.top=(Math.random()*100)+"%";
+  el.style.animationDuration=(6+Math.random()*4)+"s";
+  el.innerHTML=`<span class="id">${esc(id)}:</span>${esc(text)}`;
+  box.appendChild(el);
+  setTimeout(()=>el.remove(), 11000);
+}
+function esc(s){ return String(s).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
+/* 原设定特殊排版：每字间插入 ˊ（仅叙事块，表格/选项/弹幕不加） */
+function spacedText(s){ return esc(s).split("").join("ˊ"); }
+
+/* ---------- 本地生成器（省 Token：不调用 API） ---------- */
+const DM_TEMPLATES = ["这镜头语言绝了","氛围感可以","蹲一个","关注了！","已三连","哈哈哈哈笑死",
+  "@榜一 别潜水","前排等更新","太会了","这状态绝","慕了","弹幕护体","下播别跑","加个关注呗",
+  "镜头再近点","这动作…","心跳加速了","灯位不错","背景音乐啥","求连麦"];
+function localDanmaku(n){
+  const ids = state.audience.length ? state.audience.map(a=>a.id)
+                                     : ["夜航船","雾里看花","新来的猫","K先生","Luna","老粉A"];
+  const out=[]; const k=n||4;
+  for(let i=0;i<k;i++){
+    out.push({ id: ids[Math.floor(Math.random()*ids.length)],
+               text: DM_TEMPLATES[Math.floor(Math.random()*DM_TEMPLATES.length)] });
+  }
+  return out;
+}
+const LOCAL_EVENTS = [
+  "平台盲盒活动开启，参与可获随机流量倾斜。",
+  "粉丝团限定内容推送，解锁专属私密内容。",
+  "同分区主播发起联动邀请，可双人同框。",
+  "某长期霸榜观众发来私信。",
+  "节日特典 PK 赛预告，冠军一次性奖金浮动。",
+  "你的作品被一位大 V 转发，在线基础值提升。"
+];
+function localRandomEvent(){ return LOCAL_EVENTS[Math.floor(Math.random()*LOCAL_EVENTS.length)]; }
+
+/* 省 Token 模式下本地补充新观众（不耗 API） */
+const AUD_NAMES=["深蓝","鹿野","陈先生","阿逝","北纬","林深","Seven","老白","江月","顾辞","夜白","沈星"];
+const AUD_JOBS=["程序员","医生","设计师","教师","创业者","摄影师","金融男","自由职业","公务员","海归"];
+const AUD_PERSONA=["内敛克制型","表达欲强烈型","冷感疏离型","紧张羞涩型","情绪控制型","玩世不恭型"];
+const AUD_CMD=["主动型","被动型","观望型","酒后冲动型"];
+const AUD_FALL=["轻度","中度","重度","沉溺"];
+const AUD_SPEND=["低消","中消","高消"];
+function localNewAudience(){
+  const id=AUD_NAMES[Math.floor(Math.random()*AUD_NAMES.length)]+Math.floor(Math.random()*90+10);
+  if(state.audience.find(a=>a.id===id)) return null;
+  return { id, age:20+Math.floor(Math.random()*16), gender:"男",
+    job:AUD_JOBS[Math.floor(Math.random()*AUD_JOBS.length)],
+    spend:AUD_SPEND[Math.floor(Math.random()*AUD_SPEND.length)],
+    persona:AUD_PERSONA[Math.floor(Math.random()*AUD_PERSONA.length)],
+    cmd:AUD_CMD[Math.floor(Math.random()*AUD_CMD.length)],
+    fall:AUD_FALL[Math.floor(Math.random()*AUD_FALL.length)],
+    favor:10+Math.floor(Math.random()*30), possess:10+Math.floor(Math.random()*30),
+    lust:10+Math.floor(Math.random()*30) };
+}
+
+/* ---------- 交互流程 ---------- */
+async function nextRound(userMsg){
+  document.getElementById("choices").innerHTML='<div class="empty">模型生成中…</div>';
+  const resp = await callAI(userMsg||("第"+state.round+"回合，推进剧情"));
+  renderResponse(resp);
+}
+async function choose(c){
+  // 应用玩家本次选项的自带数值效果（确定性的玩法结果）
+  if(c.effects){ const e=c.effects, p=state.player;
+    p.balance+=(e.balance||0); p.black+=(e.black||0);
+    p.fans+=(e.fans||0); p.active+=(e.active||0); render(); }
+  await nextRound("玩家选择：「"+c.label+"」" + (c.effects?JSON.stringify(c.effects):""));
+}
+function toast(msg){
+  const t=document.createElement("div"); t.className="toast"; t.textContent=msg;
+  document.body.appendChild(t); setTimeout(()=>t.remove(),3500);
+}
+
+/* ---------- 商城（强制弹窗） ---------- */
+function openShop(){
+  const p=state.player;
+  const items=[
+    {n:"直播补光灯",price:120,lock:false},
+    {n:"化妆套装",price:200,lock:false},
+    {n:"基础道具·乳夹",price:80,lock:p.black<20,lv:"黑化≥20"},
+    {n:"初级情趣用品·遥控跳蛋",price:150,lock:p.black<20,lv:"黑化≥20"},
+    {n:"情趣服装(COS)",price:260,lock:p.black<50,lv:"黑化≥50 带货"},
+    {n:"高级组合器械·分腿器",price:680,lock:p.black<60,lv:"黑化≥60"},
+    {n:"黑暗道具库·固定秋千",price:0,lock:p.black<80,lv:"黑化≥80 免费"}
+  ];
+  document.getElementById("shopList").innerHTML = items.map((it,i)=>`
+    <div class="shop-item">
+      <div>${it.n} ${it.lock?`<span class="lock">🔒${it.lv}</span>`:""}</div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <span class="price">${it.price===0?"免费":("¥"+it.price)}</span>
+        <button class="btn" ${it.lock?"disabled":""} data-i="${i}">购买</button>
+      </div>
+    </div>`).join("");
+  document.querySelectorAll("#shopList button[data-i]").forEach(b=>{
+    b.onclick=()=>{ const it=items[+b.dataset.i];
+      if(state.player.balance>=it.price){ state.player.balance-=it.price; render(); save();
+        toast("已购买："+it.n); b.textContent="已购"; b.disabled=true; }
+      else toast("余额不足");
+    };
+  });
+  document.getElementById("shopModal").classList.remove("hidden");
+}
+
+/* ---------- 黑暗直播间档案 ---------- */
+function openDark(){
+  if(!state.room.dark){ toast("先开启黑暗直播间"); }
+  const a=state.darkArchive||{pain:"—",shame:"—",ctrl:"—",safe:"—",limit:"—"};
+  document.getElementById("darkBody").innerHTML=`
+    <table class="stats"><tr><th>项目</th><th>记录</th></tr>
+    <tr><td>疼痛阈值</td><td>${a.pain}</td></tr>
+    <tr><td>羞耻值</td><td>${a.shame}</td></tr>
+    <tr><td>高潮控制</td><td>${a.ctrl}</td></tr>
+    <tr><td>安全词</td><td>${a.safe}（有概率失效）</td></tr>
+    <tr><td>极限记录</td><td>${a.limit}</td></tr></table>
+    <div class="note" style="margin-top:10px;">档案随黑暗直播间进程自动更新（由 API 返回写入）。</div>`;
+  document.getElementById("darkModal").classList.remove("hidden");
+}
+
+/* ---------- 事件绑定 ---------- */
+document.getElementById("btnStart").onclick=async()=>{
+  if(!state.started){ state.started=true; state.round=0; }
+  state.streamCount++;
+  await nextRound(state.round===0?"开始游戏，第一回合生成欢迎语并询问角色设定":"推进下一回合");
+  // 设定：每两次直播后强制弹商城（不可跳过）
+  if(state.streamCount%2===0){ openShop(); }
+};
+document.getElementById("btnRest").onclick=async()=>{ await nextRound("进入休息日阶段，描述玩家当天可做之事（处理私信/外出/社交/筹备/休息）"); toast("🌙 休息日"); };
+document.getElementById("btnPost").onclick=async()=>{ await nextRound("玩家发布作品（短视频/图文/自拍或粉丝专属私密内容），触发粉丝积累或随机事件"); toast("📸 已发布作品"); };
+document.getElementById("btnDark").onclick=()=>{ state.room.dark=!state.room.dark; if(state.room.dark&&!state.darkArchive) state.darkArchive={pain:"未记录",shame:"未记录",ctrl:"未记录",safe:"未设定",limit:"未记录"}; render(); save(); toast(state.room.dark?"🌑 已开启黑暗直播间":"已关闭"); };
+document.getElementById("btnShop").onclick=openShop;
+document.getElementById("btnCloseShop").onclick=()=>document.getElementById("shopModal").classList.add("hidden");
+document.getElementById("btnCloseDark").onclick=()=>document.getElementById("darkModal").classList.add("hidden");
+document.getElementById("btnDark2")&&(document.getElementById("btnDark2").onclick=openDark);
+document.getElementById("btnDark").addEventListener("dblclick",openDark);
+document.getElementById("btnRestart").onclick=()=>{ if(confirm("重开将清空当前进度（保留API配置），确认？")){ state=newGame(); save(); location.reload(); } };
+document.getElementById("btnReset").onclick=()=>{ if(confirm("清除全部存档（含API配置）？")){ localStorage.clear(); location.reload(); } };
+
+/* settings：防止前面任何非关键脚本异常导致“接入 API”按钮完全失效 */
+function getCfgFromForm(){
+  return {
+    base: document.getElementById("cfgBase").value.trim(),
+    key: document.getElementById("cfgKey").value.trim(),
+    model: document.getElementById("cfgModel").value.trim() || "deepseek-v4-flash",
+    temp: document.getElementById("cfgTemp").value,
+    saveMode: document.getElementById("cfgSave").checked,
+    sys: document.getElementById("cfgSys").value
+  };
+}
+
+function fillSettings(){
+  const base = (cfg && cfg.base) || "https://api.deepseek.com/v1";
+  document.getElementById("cfgBase").value = base;
+  document.getElementById("cfgKey").value = (cfg && cfg.key) || "";
+  document.getElementById("cfgModel").value = (cfg && cfg.model) || "deepseek-v4-flash";
+  document.getElementById("cfgTemp").value = (cfg && cfg.temp != null) ? cfg.temp : 0.9;
+  document.getElementById("cfgSave").checked = !!(cfg && cfg.saveMode);
+  document.getElementById("cfgSys").value = (cfg && cfg.sys) || DEFAULT_SYS;
+  syncModelSeg();
+  syncTemp();
+}
+
+function openSettings(){
+  const modal = document.getElementById("settingsModal");
+  if(!modal) return;
+  fillSettings();
+  modal.classList.remove("hidden");
+  modal.style.display = "flex";
+}
+
+function closeSettings(){
+  const modal = document.getElementById("settingsModal");
+  if(!modal) return;
+  modal.classList.add("hidden");
+  modal.style.display = "";
+}
+
+function bindSettings(){
+  const btnSettings = document.getElementById("btnSettings");
+  const btnClose = document.getElementById("btnCloseSettings");
+  const btnSave = document.getElementById("btnSaveApi");
+  const btnTest = document.getElementById("btnTestApi");
+  const btnEco = document.getElementById("btnEco");
+  const btnFlash = document.getElementById("btnModelFlash");
+  const btnPro = document.getElementById("btnModelPro");
+
+  if(btnSettings) btnSettings.addEventListener("click", openSettings);
+  if(btnClose) btnClose.addEventListener("click", closeSettings);
+
+  if(btnSave) btnSave.addEventListener("click", ()=>{
+    cfg = getCfgFromForm();
+    saveCfg();
+    updateApiPill();
+    toast("已保存 API 配置"+(cfg.saveMode?"（省Token开）":""));
+    closeSettings();
+  });
+
+  if(btnTest) btnTest.addEventListener("click", async()=>{
+    cfg = getCfgFromForm();
+    if(!cfg.key){ toast("请先填 API Key"); return; }
+
+    const t = btnTest;
+    const oldText = t.textContent;
+    t.textContent = "测试中…";
+    t.disabled = true;
+    try{
+      const r = await callAI("测试：只返回 {\"narrative\":[{\"who\":\"系统\",\"text\":\"连接成功\"}]}", true);
+      if(r && r.narrative) toast("✅ "+(r.narrative[0]?.text || "连接成功"));
+      else toast("❌ 连接失败，请检查 Key / 地址 / 模型");
+    } finally {
+      t.textContent = oldText;
+      t.disabled = false;
+    }
+  });
+
+  if(btnEco) btnEco.addEventListener("click", ()=>{
+    document.getElementById("cfgModel").value = "deepseek-v4-flash";
+    document.getElementById("cfgTemp").value = "0.4";
+    document.getElementById("cfgSave").checked = true;
+    syncModelSeg(); syncTemp();
+    toast("已套用最省预设：v4-flash · 温度0.4 · 省Token开（点保存生效）");
+  });
+
+  if(btnFlash) btnFlash.addEventListener("click", ()=>{
+    document.getElementById("cfgModel").value="deepseek-v4-flash";
+    syncModelSeg();
+  });
+  if(btnPro) btnPro.addEventListener("click", ()=>{
+    document.getElementById("cfgModel").value="deepseek-v4-pro";
+    syncModelSeg();
+  });
+
+  const temp = document.getElementById("cfgTemp");
+  if(temp) temp.addEventListener("input", syncTemp);
+  const model = document.getElementById("cfgModel");
+  if(model) model.addEventListener("input", syncModelSeg);
+
+  const modal = document.getElementById("settingsModal");
+  if(modal) modal.addEventListener("click", e=>{
+    if(e.target === modal) closeSettings();
+  });
+}
+
+/* 温度滑块实时数值 */
+function syncTemp(){ document.getElementById("tempVal").textContent = (+document.getElementById("cfgTemp").value).toFixed(1); }
+document.getElementById("cfgTemp").addEventListener("input", syncTemp);
+/* 模型快捷切换高亮 + 回填输入框 */
+function syncModelSeg(){
+  const m = document.getElementById("cfgModel").value.trim().toLowerCase();
+  document.getElementById("btnModelFlash").classList.toggle("active", m.includes("flash"));
+  document.getElementById("btnModelPro").classList.toggle("active", m.includes("pro") && !m.includes("flash"));
+}
+document.getElementById("btnModelFlash").onclick=()=>{ document.getElementById("cfgModel").value="deepseek-v4-flash"; syncModelSeg(); };
+document.getElementById("btnModelPro").onclick=()=>{ document.getElementById("cfgModel").value="deepseek-v4-pro"; syncModelSeg(); };
+document.getElementById("cfgModel").addEventListener("input", syncModelSeg);
+function updateApiPill(){
+  const dot=document.getElementById("apiDot"), lab=document.getElementById("apiLabel");
+  if(cfg && cfg.key){ dot.className="dot on"; lab.textContent="API 已配置 · "+cfg.model; }
+  else { dot.className="dot off"; lab.textContent="API 未配置（沙盒）"; }
+}
+function updateTokPill(){
+  const el=document.getElementById("tokPill");
+  if(!el) return;
+  if(!lastUsage){ el.textContent="🔤 0 tok"; return; }
+  const c=lastUsage.completion_tokens||0, p=lastUsage.prompt_tokens||0;
+  const cache=(lastUsage.prompt_tokens_details&&lastUsage.prompt_tokens_details.cached_tokens)||0;
+  el.textContent = `🔤 ${p+c} tok` + (cache?` · 缓存${cache}`:"");
+  el.title = `prompt ${p} · completion ${c}` + (cache?` · 缓存命中 ${cache}（约1折计费）`:"");
+}
+
+/* ---------- 启动 ---------- */
+window.addEventListener("error", e=>{
+  console.error("[LIVE] JS Error:", e.error || e.message);
+  try{ toast("⚠️ 页面脚本错误："+String(e.message).slice(0,120)); }catch(_){}
+});
+window.addEventListener("unhandledrejection", e=>{
+  console.error("[LIVE] Promise Error:", e.reason);
+  try{ toast("⚠️ 异步错误："+String(e.reason?.message || e.reason).slice(0,120)); }catch(_){}
+});
+
+try{
+  load(); loadCfg();
+  if(!state) state=newGame();
+  updateApiPill();
+  updateTokPill();
+  render();
+  bindSettings();
+}catch(e){
+  console.error("[LIVE] startup failed:", e);
+  const btn = document.getElementById("btnSettings");
+  if(btn) btn.onclick = openSettings;
+  try{ toast("⚠️ 页面初始化有异常，但 API 设置按钮已强制启用"); }catch(_){}
+}
+</script>
+</body>
+</html>
